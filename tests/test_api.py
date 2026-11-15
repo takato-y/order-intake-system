@@ -99,7 +99,7 @@ def test_monthly_report_groups(client):
     assert [(x["customer_name"], x["total_quantity"]) for x in by_customer["rows"]] == \
         [("サンプル商事株式会社", 130), ("例示工業株式会社", 5)]
     by_product = client.get("/reports/monthly", params={"month": "2026-11", "group_by": "product"}).json()
-    assert {x["product"]: x["order_count"] for x in by_product["rows"]} == {"A4コピー用紙": 3, "ボールペン（黒）": 1}
+    assert {x["product"]: x["order_count"] for x in by_product["rows"]} == {"A4コピー用紙": 3, "ボールペン(黒)": 1}
 
 
 def test_monthly_report_rejects_bad_params(client):
