@@ -1,5 +1,10 @@
 # 受注メール取り込み・月次帳票システム
 
+[![test](https://github.com/takato-y/order-intake-system/actions/workflows/test.yml/badge.svg)](https://github.com/takato-y/order-intake-system/actions/workflows/test.yml)
+
+- GitHub Actions で検査している範囲：API・抽出・月次バッチ・n8n フローの静的検査・設計書の突き合わせの自動テスト（pytest）と、n8n フローの再生成との一致
+- 手元の環境でのみ確かめた範囲：n8n と実際の LLM を使った取込（TC-030〜033）、Excel の帳票マクロ（TC-035・TC-041）、Docker での起動（TC-036）。SQL Server での DDL の実行と PowerShell ラッパーは未実施（TC-037・TC-038）
+
 取引先から届く受注メールを読み取って受注データとして登録し、月末には顧客別・商品別の集計と Excel の月次帳票までを作る業務システムです。複数の技術を組み合わせ、1 つの業務の流れとして動くように設計しています（使っている技術は下の表のとおりです）。
 
 本リポジトリはポートフォリオ（閲覧用）です。無断での再利用・再配布はご遠慮ください。
