@@ -9,7 +9,7 @@ from pathlib import Path
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 DESIGN_DOCS = ["05_インターフェース設計.md", "06_詳細設計.md"]
 RUNBOOK = DOCS / "09_障害対応手順書.md"
-ERR_ID = re.compile(r"ERR-\d{3}")
+ERR_ID = re.compile(r"\bERR-\d+\b")
 
 
 def _chapter(text: str, number: int) -> str:
@@ -27,9 +27,9 @@ def test_runbook_covers_every_design_error_id():
 
     text = RUNBOOK.read_text(encoding="utf-8")
     # 4 章：エラーIDごとの見出し（### 4.n ERR-xxx 名称）
-    headings = set(re.findall(r"^### (?:\d+\.\d+ )?(ERR-\d{3}) ", _chapter(text, 4), re.M))
+    headings = set(re.findall(r"^### (?:\d+\.\d+ )?(ERR-\d+) ", _chapter(text, 4), re.M))
     # 7 章：エラーID対応表の 1 列目
-    table_ids = set(re.findall(r"^\| (ERR-\d{3}) \|", _chapter(text, 7), re.M))
+    table_ids = set(re.findall(r"^\| (ERR-\d+) \|", _chapter(text, 7), re.M))
 
     assert design_ids - headings == set(), "4 章に対応手順の節がないエラーID"
     assert design_ids - table_ids == set(), "7 章の対応表にないエラーID"
