@@ -2,6 +2,16 @@
 
 このプロジェクトの主な変更を記録します。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に、版の付け方は [セマンティック バージョニング](https://semver.org/lang/ja/) に従います。
 
+## [1.0.8] - 2026-11-16
+
+### ドキュメント
+
+- インターフェース設計書・詳細設計書で、「受注登録」ノードの通信失敗時の回数を「3 回再試行」から n8n の設定（`maxTries: 3`）どおり「初回を含め最大 3 回試行」に修正（各版 1.3）
+- 方式設計書の方針表で、REQ-011 に n8n の実行履歴を成功時に保存しない設定と CSV・Excel の数式の無害化を追記し、REQ-012 の実行契機を GitHub Actions の設定どおり「main への push とプルリクエスト」に修正（版 1.1）
+- 運用設計書の定期点検で、月次集計のログの確認先に cron の例の `output/monthly.log` を追記（版 1.3）
+- テスト仕様書の TC-019 で、日付表記 6 通りの内訳に抜けていた「年月日の漢字表記」を追記（版 1.5）
+- README・要件定義書・テーブル定義書・障害対応手順書を含む文章を見直し（話し言葉・表記ゆれ・用語の説明の不足を修正）（要件定義書 1.2、テーブル定義書 1.3、障害対応手順書 1.2）
+
 ## [1.0.7] - 2026-11-16
 
 ### ドキュメント
@@ -83,6 +93,7 @@
 
 - API の登録・重複・検証エラーのログが出力されなかった問題
 
+[1.0.8]: https://github.com/takato-y/order-intake-system/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/takato-y/order-intake-system/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/takato-y/order-intake-system/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/takato-y/order-intake-system/compare/v1.0.4...v1.0.5
