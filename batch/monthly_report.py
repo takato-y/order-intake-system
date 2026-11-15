@@ -73,7 +73,7 @@ def _atomic_write(path: Path, writer) -> None:
 # 表計算ソフトが数式として解釈する先頭文字。顧客名・商品名はメール由来の外部入力のため、
 # 「=HYPERLINK(...)」のような値が帳票を開いた人の PC で数式として動かないよう無害化する
 # （全角の「＝」も登録時の NFKC で「=」になるため、ここで必ず確認する）
-FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
 
 def neutralize_csv(value):
