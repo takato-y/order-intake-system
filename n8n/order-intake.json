@@ -1,0 +1,467 @@
+{
+  "name": "受注メール取込",
+  "nodes": [
+    {
+      "id": "639aeee7-bd2a-5dd4-a085-118f6ea2f15f",
+      "name": "設定手順",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        160
+      ],
+      "parameters": {
+        "content": "## 設定手順\n- [ ] 「設定」ノードの api_url を受注 API の URL にする（Docker の n8n から同じ PC の API へは host.docker.internal）\n- [ ] 「設定」ノードの ollama_url・ollama_model を使う LLM に合わせる\n- [ ] 受注 API を起動しておく（README の「動かし方」）\n- [ ] ワークフローを有効化し、Webhook の本番 URL に受注メールの JSON を POST する\n- [ ] Gmail から直接取り込む場合は、Webhook受信 を Gmail Trigger に差し替える（README 参照）",
+        "height": 300,
+        "width": 420
+      }
+    },
+    {
+      "id": "327db1dd-ced2-5639-bc63-e6050d9318f4",
+      "name": "Webhook受信",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "2cda1dae-6983-51d9-bdfa-89a115687f8a"
+    },
+    {
+      "id": "7b263e99-3245-5423-a8c4-325921a30cbb",
+      "name": "設定",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fc481ad7-76eb-5991-9d67-bc92572e5510",
+              "name": "api_url",
+              "value": "http://host.docker.internal:8000",
+              "type": "string"
+            },
+            {
+              "id": "923b6c7b-1ce4-51c3-8bd4-8c5eb76a6350",
+              "name": "ollama_url",
+              "value": "http://host.docker.internal:11434",
+              "type": "string"
+            },
+            {
+              "id": "5803a9db-de31-5763-a057-dec2271b6d58",
+              "name": "ollama_model",
+              "value": "qwen2.5:7b",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "33457e27-9b49-54b1-b3d6-e9108d025dd4",
+      "name": "LLM依頼の作成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Webhook で受けたメールから LLM への依頼を作る。\n// Gmail トリガーに差し替えた場合は、下の src の取り方だけを変える（README 参照）。\nconst src = $('Webhook受信').first().json.body || {};\nconst cfg = $('設定').first().json;\nconst receivedAt = src.received_at || new Date().toISOString();\nconst prompt = [\n  'You extract order data from a Japanese business email.',\n  'Return JSON with keys customer_name, product, quantity, due_date.',\n  \"- customer_name: the sender's company name (not the recipient addressed with 御中/様).\",\n  '- product: product name exactly as written, without quantity.',\n  '- quantity: integer only.',\n  `- due_date: requested delivery date as YYYY-MM-DD. The email was received on ${receivedAt.slice(0, 10)}; resolve dates without a year relative to it.`,\n  '- Use null when a value is not written. Do not guess.',\n  'Keep Japanese values in Japanese.',\n  '',\n  `Subject: ${src.subject || ''}`,\n  'Body:',\n  src.body || '',\n].join('\\n');\nreturn [{ json: {\n  message_id: src.message_id,\n  received_at: receivedAt,\n  subject: src.subject || '',\n  body: src.body || '',\n  llm_request: {\n    model: cfg.ollama_model,\n    stream: false,\n    // JSON 以外を返させないよう、出力の形を指定する\n    format: {\n      type: 'object',\n      properties: {\n        customer_name: { type: ['string', 'null'] },\n        product: { type: ['string', 'null'] },\n        quantity: { type: ['integer', 'null'] },\n        due_date: { type: ['string', 'null'] },\n      },\n      required: ['customer_name', 'product', 'quantity', 'due_date'],\n    },\n    options: { temperature: 0 },\n    messages: [{ role: 'user', content: prompt }],\n  },\n} }];\n"
+      }
+    },
+    {
+      "id": "5923b6b4-e536-588a-97c7-ca3c67c357ea",
+      "name": "LLMで項目抽出",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('設定').first().json.ollama_url }}/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.llm_request) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "8f138ee4-f26b-552a-9344-421686d769dd",
+      "name": "規則抽出に切替",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        500
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('設定').first().json.api_url }}/extract?mode=rule",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ subject: $('LLM依頼の作成').first().json.subject, body: $('LLM依頼の作成').first().json.body, received_at: $('LLM依頼の作成').first().json.received_at }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "574c87ef-0fca-5831-bbd7-8884f0443814",
+      "name": "スキーマ検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// LLM の結果（または API の規則抽出の結果）を受注データにそろえ、JSON スキーマで検証する。\n// スキーマは app/order_schema.json と同じもの（tools/build_n8n_workflow.py が埋め込む）。\nconst SCHEMA = /*SCHEMA_BEGIN*/{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"title\": \"受注データ\",\n  \"description\": \"受注 API への登録データ。n8n のスキーマ検証ノードにも同じ内容を埋め込み、テストで一致を確認する。\",\n  \"type\": \"object\",\n  \"required\": [\n    \"message_id\",\n    \"customer_name\",\n    \"product\",\n    \"quantity\",\n    \"due_date\"\n  ],\n  \"additionalProperties\": false,\n  \"properties\": {\n    \"message_id\": {\n      \"type\": \"string\",\n      \"minLength\": 3,\n      \"maxLength\": 255,\n      \"pattern\": \"^\\\\S+$\"\n    },\n    \"customer_name\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 100\n    },\n    \"product\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 100\n    },\n    \"quantity\": {\n      \"type\": \"integer\",\n      \"minimum\": 1,\n      \"maximum\": 100000\n    },\n    \"due_date\": {\n      \"type\": \"string\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}$\"\n    },\n    \"received_at\": {\n      \"type\": \"string\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}(:\\\\d{2})?\"\n    },\n    \"extractor\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"llm\",\n        \"rule\",\n        \"manual\"\n      ]\n    }\n  }\n}/*SCHEMA_END*/;\n\nfunction validate(schema, obj) {\n  const errors = [];\n  for (const k of schema.required) {\n    if (obj[k] === undefined) errors.push({ field: k, message: '必須項目がありません' });\n  }\n  for (const k of Object.keys(obj)) {\n    if (!schema.properties[k]) errors.push({ field: k, message: '定義されていない項目です' });\n  }\n  for (const [k, rule] of Object.entries(schema.properties)) {\n    const v = obj[k];\n    if (v === undefined) continue;\n    if (rule.type === 'integer' && !Number.isInteger(v)) { errors.push({ field: k, message: '整数ではありません' }); continue; }\n    if (rule.type === 'string' && typeof v !== 'string') { errors.push({ field: k, message: '文字列ではありません' }); continue; }\n    // 文字数は Python 側と同じくコードポイント単位で数える\n    const len = typeof v === 'string' ? [...v].length : 0;\n    if (rule.minLength !== undefined && len < rule.minLength) errors.push({ field: k, message: `${rule.minLength} 文字以上にしてください` });\n    if (rule.maxLength !== undefined && len > rule.maxLength) errors.push({ field: k, message: `${rule.maxLength} 文字以内にしてください` });\n    if (rule.minimum !== undefined && v < rule.minimum) errors.push({ field: k, message: `${rule.minimum} 以上にしてください` });\n    if (rule.maximum !== undefined && v > rule.maximum) errors.push({ field: k, message: `${rule.maximum} 以下にしてください` });\n    if (rule.pattern !== undefined && !new RegExp(rule.pattern, 'u').test(v)) errors.push({ field: k, message: '形式が正しくありません' });\n    if (rule.enum !== undefined && !rule.enum.includes(v)) errors.push({ field: k, message: '許可されていない値です' });\n  }\n  return errors;\n}\n\n// 「11月28日」「2026/11/28」のような表記を YYYY-MM-DD にする。年がなければ受信日から補う\nfunction toIsoDate(text, receivedAt) {\n  if (typeof text !== 'string') return text;\n  const t = text.normalize('NFKC');\n  const pad = (n) => String(n).padStart(2, '0');\n  let m = t.match(/(\\d{4})\\s*[年\\/\\-.]\\s*(\\d{1,2})\\s*[月\\/\\-.]\\s*(\\d{1,2})/);\n  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;\n  m = t.match(/(\\d{1,2})\\s*[月\\/]\\s*(\\d{1,2})/);\n  if (m) {\n    const rd = receivedAt.slice(0, 10);\n    let y = Number(rd.slice(0, 4));\n    if (`${y}-${pad(m[1])}-${pad(m[2])}` < rd) y += 1;\n    return `${y}-${pad(m[1])}-${pad(m[2])}`;\n  }\n  return t;\n}\n\nconst prep = $('LLM依頼の作成').first().json;\nconst input = $input.first().json;\nlet fields = {};\nlet extractor = 'llm';\nif (input.fields) {\n  // API の規則抽出（LLM が使えなかったときの代替経路）\n  fields = input.fields;\n  extractor = 'rule';\n} else {\n  try {\n    fields = JSON.parse(input.message.content);\n  } catch (e) {\n    fields = {};\n  }\n}\n\nconst order = { message_id: prep.message_id, received_at: prep.received_at, extractor };\nfor (const k of ['customer_name', 'product', 'quantity', 'due_date']) {\n  let v = fields[k];\n  if (v === null || v === undefined || v === '') continue;\n  if (k === 'quantity' && typeof v === 'string') {\n    const d = v.normalize('NFKC').replace(/,/g, '').match(/\\d+/);\n    v = d ? Number(d[0]) : v;\n  }\n  if (k === 'due_date') v = toIsoDate(v, prep.received_at);\n  order[k] = typeof v === 'string' ? v.trim() : v;\n}\nfor (const k of Object.keys(order)) if (order[k] === undefined) delete order[k];\n\nconst errors = validate(SCHEMA, order);\nreturn [{ json: { valid: errors.length === 0, errors, order } }];\n"
+      }
+    },
+    {
+      "id": "caeec511-e2da-5bd9-a37d-31a2daec1338",
+      "name": "検証結果で分岐",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "0455d439-358b-5908-8ba1-70fd43ebc460",
+              "leftValue": "={{ $json.valid }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2b76cc98-8ce0-5019-bf79-0c0cfe94dd81",
+      "name": "受注登録",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('設定').first().json.api_url }}/orders",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.order) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "aba2aa62-09f5-57e9-97ea-70dd333ae863",
+      "name": "登録結果で分岐",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "930a72b7-cd1a-5937-998c-f187fdb8f03b",
+              "leftValue": "={{ $json.statusCode }}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              },
+              "rightValue": 300
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cc319410-73f6-5aa5-8a28-b75cc004cc91",
+      "name": "登録完了の応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode }}"
+        }
+      }
+    },
+    {
+      "id": "9da39207-ef2b-5368-8cc6-722ac168e13f",
+      "name": "登録エラーの応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ stage: 'api', status: $json.statusCode, detail: $json.body }) }}",
+        "options": {
+          "responseCode": 422
+        }
+      }
+    },
+    {
+      "id": "1642d969-7ab8-54ce-ac4e-4876e9478374",
+      "name": "API障害の応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ stage: 'api', message: '受注 API に接続できませんでした' }) }}",
+        "options": {
+          "responseCode": 503
+        }
+      }
+    },
+    {
+      "id": "63206302-3071-589f-8276-357233a6f727",
+      "name": "不合格の記録",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('設定').first().json.api_url }}/rejections",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message_id: typeof $json.order.message_id === 'string' ? $json.order.message_id : null, source: 'n8n', errors: $json.errors }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "8c79846f-d251-56ac-8132-743dc8cac76e",
+      "name": "不合格の応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        600
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ stage: 'validation', errors: $('スキーマ検証').first().json.errors }) }}",
+        "options": {
+          "responseCode": 422
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook受信": {
+      "main": [
+        [
+          {
+            "node": "設定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "設定": {
+      "main": [
+        [
+          {
+            "node": "LLM依頼の作成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM依頼の作成": {
+      "main": [
+        [
+          {
+            "node": "LLMで項目抽出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLMで項目抽出": {
+      "main": [
+        [
+          {
+            "node": "スキーマ検証",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "規則抽出に切替",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "規則抽出に切替": {
+      "main": [
+        [
+          {
+            "node": "スキーマ検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキーマ検証": {
+      "main": [
+        [
+          {
+            "node": "検証結果で分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "検証結果で分岐": {
+      "main": [
+        [
+          {
+            "node": "受注登録",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "不合格の記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "受注登録": {
+      "main": [
+        [
+          {
+            "node": "登録結果で分岐",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API障害の応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "登録結果で分岐": {
+      "main": [
+        [
+          {
+            "node": "登録完了の応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "登録エラーの応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "不合格の記録": {
+      "main": [
+        [
+          {
+            "node": "不合格の応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
