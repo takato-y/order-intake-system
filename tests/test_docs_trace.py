@@ -26,8 +26,8 @@ def test_runbook_covers_every_design_error_id():
     assert design_ids, "設計書にエラーIDが見つかりません"
 
     text = RUNBOOK.read_text(encoding="utf-8")
-    # 4 章：エラーIDごとの見出し（### ERR-xxx 名称）
-    headings = set(re.findall(r"^### (ERR-\d{3}) ", _chapter(text, 4), re.M))
+    # 4 章：エラーIDごとの見出し（### 4.n ERR-xxx 名称）
+    headings = set(re.findall(r"^### (?:\d+\.\d+ )?(ERR-\d{3}) ", _chapter(text, 4), re.M))
     # 7 章：エラーID対応表の 1 列目
     table_ids = set(re.findall(r"^\| (ERR-\d{3}) \|", _chapter(text, 7), re.M))
 
