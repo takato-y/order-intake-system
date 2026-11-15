@@ -9,7 +9,7 @@ from pathlib import Path
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 DESIGN_DOCS = ["05_インターフェース設計.md", "06_詳細設計.md"]
 RUNBOOK = DOCS / "09_障害対応手順書.md"
-ERR_ID = re.compile(r"\bERR-\d+\b")
+ERR_ID = re.compile(r"(?<![A-Za-z0-9_-])ERR-\d+(?![A-Za-z0-9_-])")
 
 
 def _chapter(text: str, number: int) -> str:
