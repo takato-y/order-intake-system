@@ -53,7 +53,7 @@ flowchart LR
 | SQLite / SQL Server | 受注・顧客・商品・取込エラーの保存。SQL Server 用 DDL を用意（SQL Server での実行は未確認） | `sql/` |
 | Python（バッチ）/ PowerShell | 月次集計を CSV・xlsx に出力。タスクスケジューラから起動するためのラッパーを用意（Windows での実行は未確認） | `batch/` |
 | Excel VBA | CSV を取り込み、小計・総合計つきの帳票を作成 | `src/MonthlyReport.bas` |
-| pytest / GitHub Actions | 抽出・検証・重複・集計・n8n フローの自動テスト（pytest はローカルで実行済み。GitHub Actions は未実行で、公開後に確認予定） | `tests/`、`.github/workflows/test.yml` |
+| pytest / GitHub Actions | 抽出・検証・重複・集計・n8n フローの自動テスト（pytest はローカルと GitHub Actions の両方で実行し、合格） | `tests/`、`.github/workflows/test.yml` |
 | Docker Compose | 確認用に API（必要なら n8n も）を起動する定義（compose での起動は未確認。同じ Dockerfile の docker build・run で確認済み） | `docker-compose.yml` |
 
 ## 動かし方
@@ -202,4 +202,4 @@ order-intake-system/
 | Excel | Windows 版 Excel（デスクトップアプリ） |
 | Docker | Docker Desktop（Compose v5） |
 
-確認していないこと：SQL Server での DDL の実行、PowerShell ラッパーの Windows での実行、`docker compose up` によるコンテナ起動（同じ Dockerfile での `docker build`・`docker run` と、`docker compose config` は確認済み）、GitHub Actions 上での実行（未実行。公開後に確認予定）。
+確認していないこと：SQL Server での DDL の実行、PowerShell ラッパーの Windows での実行、`docker compose up` によるコンテナ起動（同じ Dockerfile での `docker build`・`docker run` と、`docker compose config` は確認済み）。GitHub Actions 上での自動テストは公開後に実行し、47 件合格・1 件スキップ（実 LLM を使う 1 件は CI では実行しない設定）を確認済み。
