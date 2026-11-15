@@ -106,5 +106,6 @@ def test_formula_like_names_are_neutralized(client, db_path, tmp_path):
 def test_neutralize_csv_unit():
     assert mr.neutralize_csv("=1+1") == "'=1+1"
     assert mr.neutralize_csv("\tx") == "'\tx"
+    assert mr.neutralize_csv("\n=1+1") == "'\n=1+1"
     assert mr.neutralize_csv("普通の名前") == "普通の名前"
     assert mr.neutralize_csv(5) == 5
