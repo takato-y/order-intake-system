@@ -159,8 +159,9 @@ LLM の停止・タイムアウト・出力の崩れが起きても、取り込�
 | [04_テーブル定義書](docs/04_テーブル定義書.md) | テーブル定義（DDL から生成）、ER 図、SQLite と SQL Server の対応 |
 | [05_インターフェース設計](docs/05_インターフェース設計.md) | API 仕様、エラーコード、n8n との連携、CSV レイアウト |
 | [06_詳細設計](docs/06_詳細設計.md) | 抽出・重複判定・集計バッチの処理フロー、例外処理、ログ方針 |
-| [07_テスト仕様書](docs/07_テスト仕様書.md) | TC-001〜042 と実施結果（未実施の項目も明記） |
-| [08_運用設計](docs/08_運用設計.md) | ジョブ一覧、障害対応表、バックアップ |
+| [07_テスト仕様書](docs/07_テスト仕様書.md) | TC-001〜044 と実施結果（未実施の項目も明記） |
+| [08_運用設計](docs/08_運用設計.md) | ジョブ一覧、障害対応表、バックアップ、定期点検、資格情報の更新、連絡体制 |
+| [09_障害対応手順書](docs/09_障害対応手順書.md) | 障害時の流れ、切り分けの順番、エラーID（ERR-001〜008）ごとの対応手順、記録と報告 |
 | [flows/FLW-001](docs/flows/FLW-001_受注メール取込.md) | n8n フローのノード一覧（エクスポートから生成） |
 | [adr/](docs/adr/) | 主な設計判断の記録 |
 
@@ -202,4 +203,4 @@ order-intake-system/
 | Excel | Windows 版 Excel（デスクトップアプリ） |
 | Docker | Docker Desktop（Compose v5） |
 
-確認していないこと：SQL Server での DDL の実行、PowerShell ラッパーの Windows での実行、`docker compose up` によるコンテナ起動（同じ Dockerfile での `docker build`・`docker run` と、`docker compose config` は確認済み）。GitHub Actions 上での自動テストは公開後に実行し、47 件合格・1 件スキップ（実 LLM を使う 1 件は CI では実行しない設定）を確認済み。
+確認していないこと：SQL Server での DDL の実行、PowerShell ラッパーの Windows での実行、`docker compose up` によるコンテナ起動（同じ Dockerfile での `docker build`・`docker run` と、`docker compose config` は確認済み）。GitHub Actions 上での自動テストは公開後に実行し、47 件合格・1 件スキップ（実 LLM を使う 1 件は CI では実行しない設定）を確認済み。障害対応手順書の検査（TC-044）を加えた後のローカルでの実行結果は 48 件合格・1 件スキップ。

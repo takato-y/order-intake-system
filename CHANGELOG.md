@@ -2,6 +2,18 @@
 
 このプロジェクトの主な変更を記録します。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に、版の付け方は [セマンティック バージョニング](https://semver.org/lang/ja/) に従います。
 
+## [1.0.7] - 2026-11-16
+
+### ドキュメント
+
+- 障害対応手順書（09_障害対応手順書.md）を追加。障害時の流れ、切り分けの順番、ERR-001〜ERR-008 ごとの対応手順、エラーIDの付かない障害、記録と報告のひな形、エラーID対応表
+- 運用設計書に定期点検、資格情報・鍵・トークンの更新、連絡体制を追加し、障害対応表から障害対応手順書を参照（版 1.2）
+- テスト仕様書に TC-044 を追加（版 1.4）
+
+### 追加
+
+- 設計書のエラーIDと障害対応手順書の見出し・対応表を突き合わせる自動テスト（`tests/test_docs_trace.py`）
+
 ## [1.0.6] - 2026-11-15
 
 ### ドキュメント
@@ -68,6 +80,7 @@
 
 - API の登録・重複・検証エラーのログが出力されなかった問題
 
+[1.0.7]: https://github.com/takato-y/order-intake-system/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/takato-y/order-intake-system/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/takato-y/order-intake-system/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/takato-y/order-intake-system/compare/v1.0.3...v1.0.4
