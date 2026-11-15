@@ -9,13 +9,16 @@ import logging
 import os
 import re
 import sqlite3
+import unicodedata
 from contextlib import asynccontextmanager
+from datetime import date
 from typing import Literal
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from . import db
+from .extractor import extract
 from .validation import normalize_received_at, validate_order
 
 logger = logging.getLogger("order_api")
@@ -57,6 +60,10 @@ def register_order(conn: sqlite3.Connection, payload: dict, source: str) -> JSON
         return JSONResponse(status_code=422, content={"detail": {"errors": errors}})
 
     order = {**payload, "received_at": normalize_received_at(payload.get("received_at"))}
+    # 抽出方式によって全角・半角が揺れる（「（黒）」と「(黒)」など）と別の顧客・商品として
+    # マスタに登録されてしまうため、名称は登録前に NFKC でそろえる
+    for key in ("customer_name", "product"):
+        order[key] = unicodedata.normalize("NFKC", order[key]).strip()
     saved, created = db.insert_order(conn, order)
     logger.info("order %s message_id=%s", "created" if created else "duplicate", order["message_id"])
     # 重複は失敗ではない。既存の受注を返し、再送した側が成功として扱えるようにする（ADR-0003）
@@ -93,6 +100,32 @@ def register_routes(app: FastAPI) -> None:
                       "total_quantity": sum(r["total_quantity"] for r in rows)},
         }
 
+    @app.post("/extract")
+    def extract_only(payload: dict = Body(...),
+                     mode: Literal["rule", "llm", "auto"] = "rule"):
+        # n8n で LLM 呼び出しが失敗したときの代替経路。登録はせず抽出結果だけを返す
+        email = _read_email(payload, need_id=False)
+        result = extract(email["subject"], email["body"], email["received_date"], mode)
+        return {"extractor": result.extractor, "fields": result.fields,
+                "missing": result.missing, "llm_error": result.llm_error}
+
+    @app.post("/intake/email")
+    def intake_email(payload: dict = Body(...), conn=Depends(get_conn)):
+        # n8n を使わない経路（メールサーバからの直接連携・手動取込）向け。抽出→検証→登録を一度に行う
+        email = _read_email(payload, need_id=True)
+        # 再送メールで LLM を呼び直さないよう、抽出前に登録済みかを確認する。
+        # 最終的な重複防止は INSERT 時の一意制約が担う
+        existing = db.get_order_by_message_id(conn, email["message_id"])
+        if existing:
+            return JSONResponse(status_code=200, content={"duplicate": True, "order": existing})
+        mode = os.environ.get("EXTRACTOR_MODE", "rule")
+        result = extract(email["subject"], email["body"], email["received_date"], mode)
+        if result.llm_error:
+            logger.warning("LLM fallback message_id=%s reason=%s", email["message_id"], result.llm_error)
+        order = {**result.fields, "message_id": email["message_id"],
+                 "received_at": email["received_at"], "extractor": result.extractor}
+        return register_order(conn, order, source="intake")
+
     @app.post("/rejections", status_code=201)
     def create_rejection(payload: dict = Body(...), conn=Depends(get_conn)):
         # n8n のスキーマ検証で不合格になったメールを記録する入口
@@ -110,6 +143,24 @@ def register_routes(app: FastAPI) -> None:
     @app.get("/rejections")
     def get_rejections(limit: int = Query(100, ge=1, le=1000), conn=Depends(get_conn)):
         return {"rejections": db.list_rejections(conn, limit)}
+
+
+def _read_email(payload: dict, need_id: bool) -> dict:
+    body = payload.get("body")
+    if not isinstance(body, str) or not body.strip():
+        raise HTTPException(422, "body（メール本文）が必要です")
+    if len(body) > 20000:
+        raise HTTPException(413, "メール本文が長すぎます（20,000 文字まで）")
+    message_id = payload.get("message_id")
+    if need_id and (not isinstance(message_id, str) or not re.fullmatch(r"\S{3,255}", message_id)):
+        raise HTTPException(422, "message_id（空白を含まない 3〜255 文字）が必要です")
+    try:
+        received_at = normalize_received_at(payload.get("received_at"))
+    except (ValueError, AttributeError):
+        raise HTTPException(422, "received_at は ISO 8601 形式で指定してください")
+    subject = payload.get("subject") if isinstance(payload.get("subject"), str) else ""
+    return {"message_id": message_id, "subject": subject, "body": body,
+            "received_at": received_at, "received_date": date.fromisoformat(received_at[:10])}
 
 
 app = create_app()
