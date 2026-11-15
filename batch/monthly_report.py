@@ -70,6 +70,19 @@ def _atomic_write(path: Path, writer) -> None:
         raise
 
 
+# 表計算ソフトが数式として解釈する先頭文字。顧客名・商品名はメール由来の外部入力のため、
+# 「=HYPERLINK(...)」のような値が帳票を開いた人の PC で数式として動かないよう無害化する
+# （全角の「＝」も登録時の NFKC で「=」になるため、ここで必ず確認する）
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def neutralize_csv(value):
+    """CSV 用。数式の先頭文字で始まる文字列の前に ' を付け、文字列として扱わせる。"""
+    if isinstance(value, str) and value.startswith(FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 def write_csv(path: Path, month: str, rows: list[dict]) -> None:
     def w(p: Path):
         # Excel で文字化けしないよう BOM 付き UTF-8 にする
@@ -77,7 +90,8 @@ def write_csv(path: Path, month: str, rows: list[dict]) -> None:
             out = csv.writer(f, lineterminator="\r\n")
             out.writerow(CSV_HEADER)
             for r in rows:
-                out.writerow([month, r["customer_name"], r["product"], r["order_count"], r["total_quantity"]])
+                out.writerow([month, neutralize_csv(r["customer_name"]), neutralize_csv(r["product"]),
+                              r["order_count"], r["total_quantity"]])
     _atomic_write(path, w)
 
 
@@ -104,6 +118,10 @@ def write_xlsx(path: Path, month: str, data: dict[str, list[dict]]) -> None:
                 vals = ([r["customer_name"]] if key != "product" else []) + \
                        ([r["product"]] if key != "customer" else []) + [r["order_count"], r["total_quantity"]]
                 ws.append(vals)
+                # openpyxl は "=" で始まる文字列を数式として保存するため、文字列型に固定する
+                for c in ws[ws.max_row]:
+                    if isinstance(c.value, str):
+                        c.data_type = "s"
             total = ["合計"] + [""] * (len(cols) - 3) + [sum(r["order_count"] for r in rows),
                                                         sum(r["total_quantity"] for r in rows)]
             ws.append(total)

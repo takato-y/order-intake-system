@@ -252,6 +252,9 @@ connections = {
 }
 
 wf = {"name": "受注メール取込", "nodes": out_nodes, "connections": connections,
-      "settings": {"executionOrder": "v1"}, "pinData": {}}
+      # 成功した実行の履歴にはメール本文が残るため保存しない（REQ-011）。失敗時は原因調査のため保存する
+      "settings": {"executionOrder": "v1", "saveDataSuccessExecution": "none",
+                   "saveDataErrorExecution": "all"},
+      "pinData": {}}
 OUT.write_text(json.dumps(wf, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 print(f"wrote {OUT.relative_to(ROOT)} ({len(out_nodes)} nodes)")

@@ -4,8 +4,8 @@
 #   Written in ASCII only so that Windows PowerShell 5.1 never misreads the encoding.
 #
 # Usage:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File batch\run_monthly.ps1
-#   powershell -NoProfile -ExecutionPolicy Bypass -File batch\run_monthly.ps1 -Month 2026-11
+#   powershell -NoProfile -ExecutionPolicy RemoteSigned -File batch\run_monthly.ps1
+#   powershell -NoProfile -ExecutionPolicy RemoteSigned -File batch\run_monthly.ps1 -Month 2026-11
 # Exit code: same as monthly_report.py (0 = OK, 1 = fetch failed, 2 = bad argument)
 # =============================================================
 param(

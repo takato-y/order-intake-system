@@ -1,6 +1,6 @@
 # 受注メール取り込み・月次帳票システム
 
-取引先から届く受注メールを読み取って受注データとして登録し、月末には顧客別・商品別の集計と Excel の月次帳票までを作る業務システムです。n8n・生成 AI（LLM）・Python の API・データベース・Excel VBA を組み合わせ、1 つの業務の流れとして動くように設計しています。
+取引先から届く受注メールを読み取って受注データとして登録し、月末には顧客別・商品別の集計と Excel の月次帳票までを作る業務システムです。複数の技術を組み合わせ、1 つの業務の流れとして動くように設計しています（使っている技術は下の表のとおりです）。
 
 本リポジトリはポートフォリオ（閲覧用）です。無断での再利用・再配布はご遠慮ください。
 
@@ -33,7 +33,7 @@ flowchart LR
     F --> API
     E --> API
     subgraph APP["受注 API (FastAPI)"]
-        API[REST API] --> DB[("SQLite<br/>（SQL Server へ移行可）")]
+        API[REST API] --> DB[("SQLite<br/>（SQL Server 用 DDL を用意）")]
     end
     BATCH["月次バッチ (Python)"] -->|月次集計| API
     BATCH --> CSV["CSV / xlsx"]
@@ -50,17 +50,21 @@ flowchart LR
 | LLM（Ollama / qwen2.5） | メール本文から受注項目を JSON で取り出す | `app/extractor.py`、n8n の「LLMで項目抽出」 |
 | Python / FastAPI | 入力検証・重複判定・登録・一覧・月次集計、LLM が使えないときの規則による抽出 | `app/` |
 | JSON スキーマ | 受注データの規則を 1 か所で定義し、API と n8n で共有 | `app/order_schema.json` |
-| SQLite / SQL Server | 受注・顧客・商品・取込エラーの保存。SQL Server 用の DDL も用意 | `sql/` |
-| Python（バッチ）/ PowerShell | 月次集計を CSV・xlsx に出力。タスクスケジューラから起動 | `batch/` |
+| SQLite / SQL Server | 受注・顧客・商品・取込エラーの保存。SQL Server 用 DDL を用意（SQL Server での実行は未確認） | `sql/` |
+| Python（バッチ）/ PowerShell | 月次集計を CSV・xlsx に出力。タスクスケジューラから起動するためのラッパーを用意（Windows での実行は未確認） | `batch/` |
 | Excel VBA | CSV を取り込み、小計・総合計つきの帳票を作成 | `src/MonthlyReport.bas` |
-| pytest / GitHub Actions | 抽出・検証・重複・集計・n8n フローの自動テスト | `tests/`、`.github/workflows/test.yml` |
-| Docker Compose | 確認用に API（必要なら n8n も）を 1 コマンドで起動 | `docker-compose.yml` |
+| pytest / GitHub Actions | 抽出・検証・重複・集計・n8n フローの自動テスト（pytest はローカルで実行済み。GitHub Actions は未実行で、公開後に確認予定） | `tests/`、`.github/workflows/test.yml` |
+| Docker Compose | 確認用に API（必要なら n8n も）を起動する定義（compose での起動は未確認。同じ Dockerfile の docker build・run で確認済み） | `docker-compose.yml` |
 
 ## 動かし方
 
 LLM や外部サービスがなくても、規則による抽出で全体が動きます。
 
+API と Webhook は認証なし・ローカル（社内）専用の構成です。外部に公開する場合は認証が必要です（[docs/02_方式設計.md](docs/02_方式設計.md) の 6 章を参照）。
+
 ### Docker を使う場合
+
+`docker compose up` での起動は未確認です（同じ Dockerfile での `docker build`・`docker run` は確認済み）。ポートは 127.0.0.1 にだけ公開します。
 
 ```bash
 docker compose up -d --build          # API だけを起動（http://localhost:8000/docs で API の画面）
@@ -127,7 +131,7 @@ LLM を止めた場合は、文章形式のメール（06）だけが取込エ�
 
 ### 二重の検証
 
-受注データの規則は JSON スキーマ 1 つにまとめ、n8n の検証ノードと API の両方で同じ規則を使っています。n8n には生成スクリプトでスキーマを埋め込み、「埋め込んだスキーマが API と同じか」「JavaScript と Python の判定が同じか」を自動テストで確かめています。API ではさらに「実在する日付か」「納期が受信日より前でないか」を確認します。
+受注データの規則は JSON スキーマ 1 つにまとめ、n8n の検証ノードと API の両方で同じ規則を使っています。n8n には生成スクリプトでスキーマを埋め込み、「埋め込んだスキーマが API と同じか」「JavaScript と Python の判定が同じか」を自動テストで確認しています。API ではさらに「実在する日付か」「納期が受信日より前でないか」を確認します。
 
 ### LLM が使えないときの代替
 
@@ -135,11 +139,15 @@ LLM の停止・タイムアウト・出力の崩れが起きても、取り込�
 
 ### SQL Server への移行のしやすさ
 
-開始時は導入の手間がない SQLite を使い、SQL Server 用の DDL を併記しています。SQL は標準の範囲で書き、月の絞り込みも方言の関数を使わず範囲条件にしているため、移行時の変更はデータアクセス層の接続部分に限られます。型の対応表と移行手順は [docs/04_テーブル定義書.md](docs/04_テーブル定義書.md) にあります（[ADR-0001](docs/adr/0001-sqlite採用とsqlserver移行方針.md)）。
+開始時は導入の手間がない SQLite を使い、SQL Server 用 DDL を用意しています（SQL Server での実行は未確認）。SQL は標準の範囲で書き、月の絞り込みも方言の関数を使わず範囲条件にしているため、移行時の変更がデータアクセス層の接続部分に限られる設計です。型の対応表と移行手順は [docs/04_テーブル定義書.md](docs/04_テーブル定義書.md) にあります（[ADR-0001](docs/adr/0001-sqlite採用とsqlserver移行方針.md)）。
 
 ### 個人に関わる情報を残さない
 
-メール本文はデータベースに保存せず、受注に必要な項目だけを残します。取込エラーも理由だけを記録します。
+メール本文はデータベースに保存せず、受注に必要な項目だけを残します。取込エラーも理由だけを記録します。n8n のフローは成功した実行の履歴を保存しない設定にしています（失敗時の履歴には本文が残るため、保存期間は n8n 側で設定します）。
+
+### 帳票を開いたときに数式として動かない
+
+顧客名・商品名はメールから取り出した外部の文字列です。「=」「+」「-」「@」で始まる値は、CSV では先頭に「'」を付け、xlsx では文字列型に固定し、帳票マクロでも文字列として書き込みます。全角の「＝」も登録時に半角へそろえたうえで同じ扱いになります。
 
 ## 設計書
 
@@ -151,7 +159,7 @@ LLM の停止・タイムアウト・出力の崩れが起きても、取り込�
 | [04_テーブル定義書](docs/04_テーブル定義書.md) | テーブル定義（DDL から生成）、ER 図、SQLite と SQL Server の対応 |
 | [05_インターフェース設計](docs/05_インターフェース設計.md) | API 仕様、エラーコード、n8n との連携、CSV レイアウト |
 | [06_詳細設計](docs/06_詳細設計.md) | 抽出・重複判定・集計バッチの処理フロー、例外処理、ログ方針 |
-| [07_テスト仕様書](docs/07_テスト仕様書.md) | TC-001〜039 と実施結果（未実施の項目も明記） |
+| [07_テスト仕様書](docs/07_テスト仕様書.md) | TC-001〜042 と実施結果（未実施の項目も明記） |
 | [08_運用設計](docs/08_運用設計.md) | ジョブ一覧、障害対応表、バックアップ |
 | [flows/FLW-001](docs/flows/FLW-001_受注メール取込.md) | n8n フローのノード一覧（エクスポートから生成） |
 | [adr/](docs/adr/) | 主な設計判断の記録 |
@@ -194,4 +202,4 @@ order-intake-system/
 | Excel | Windows 版 Excel（デスクトップアプリ） |
 | Docker | Docker Desktop（Compose v5） |
 
-確認していないこと：SQL Server での DDL の実行、PowerShell ラッパーの Windows での実行、`docker compose up` によるコンテナ起動（同じ Dockerfile での `docker build`・`docker run` と、`docker compose config` は確認済み）、GitHub Actions 上での実行（リポジトリ公開後に動きます）。
+確認していないこと：SQL Server での DDL の実行、PowerShell ラッパーの Windows での実行、`docker compose up` によるコンテナ起動（同じ Dockerfile での `docker build`・`docker run` と、`docker compose config` は確認済み）、GitHub Actions 上での実行（未実行。公開後に確認予定）。

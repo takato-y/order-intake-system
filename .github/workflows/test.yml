@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# テストはリポジトリを読むだけなので、トークンの権限を読み取りに限定する
+permissions:
+  contents: read
+
 jobs:
   pytest:
     runs-on: ubuntu-latest
