@@ -14,10 +14,10 @@ indent_size = 2
 [*.md]
 trim_trailing_whitespace = false
 
-# VBA エディタへの取り込みは CRLF・Shift_JIS 前提のため別扱い
+# VBA モジュールは GitHub で読めるよう UTF-8 で保管する。
+# VBE へ取り込むときは Shift_JIS（CP932）に変換する（README 参照）
 [*.bas]
 end_of_line = crlf
-charset = unset
 
 # Windows PowerShell 5.1 での文字化けを避けるため ASCII のみで書く
 [*.ps1]
