@@ -27,6 +27,9 @@ MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 
 def create_app(db_path: str | None = None) -> FastAPI:
     db_path = db_path or os.environ.get("DB_PATH", "data/orders.db")
+    # uvicorn はアプリのロガーを設定しないため、登録・重複・切替のログが出るようここで設定する
+    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"),
+                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -117,6 +120,7 @@ def register_routes(app: FastAPI) -> None:
         # 最終的な重複防止は INSERT 時の一意制約が担う
         existing = db.get_order_by_message_id(conn, email["message_id"])
         if existing:
+            logger.info("order duplicate (skipped extraction) message_id=%s", email["message_id"])
             return JSONResponse(status_code=200, content={"duplicate": True, "order": existing})
         mode = os.environ.get("EXTRACTOR_MODE", "rule")
         result = extract(email["subject"], email["body"], email["received_date"], mode)
