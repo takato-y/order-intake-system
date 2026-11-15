@@ -52,8 +52,11 @@ Public Function BuildMonthlyReport(ByVal csvPath As String) As String
                 WriteTotalRow ws, r, prevCustomer & " 小計", subCount, subQty, False
                 r = r + 1: subCount = 0: subQty = 0
             End If
-            ws.Cells(r, 1).Value = f(1)
-            ws.Cells(r, 2).Value = f(2)
+            ' 顧客名・商品名はメール由来の外部入力。文字列書式にしたうえで、
+            ' 数式の先頭文字で始まる値は ' を付けて書き込み、数式として動かないようにする
+            ws.Range(ws.Cells(r, 1), ws.Cells(r, 2)).NumberFormat = "@"
+            ws.Cells(r, 1).Value = SafeText(f(1))
+            ws.Cells(r, 2).Value = SafeText(f(2))
             ws.Cells(r, 3).Value = CLng(f(3))
             ws.Cells(r, 4).Value = CLng(f(4))
             subCount = subCount + CLng(f(3)): subQty = subQty + CLng(f(4))
@@ -80,7 +83,8 @@ End Function
 
 Private Sub WriteTotalRow(ByVal ws As Worksheet, ByVal r As Long, ByVal label As String, _
                           ByVal cnt As Long, ByVal qty As Long, ByVal isGrand As Boolean)
-    ws.Cells(r, 1).Value = label
+    ws.Cells(r, 1).NumberFormat = "@"
+    ws.Cells(r, 1).Value = SafeText(label)
     ws.Cells(r, 3).Value = cnt
     ws.Cells(r, 4).Value = qty
     With ws.Range(ws.Cells(r, 1), ws.Cells(r, 4))
@@ -88,6 +92,18 @@ Private Sub WriteTotalRow(ByVal ws As Worksheet, ByVal r As Long, ByVal label As
         .Interior.Color = IIf(isGrand, RGB(221, 231, 243), RGB(242, 242, 242))
     End With
 End Sub
+
+' 数式として解釈される先頭文字（= + - @ タブ 改行）で始まる値の前に ' を付ける。
+' バッチ側で既に ' が付いている値はそのまま（Excel は先頭の ' を表示せず文字列として扱う）
+Private Function SafeText(ByVal s As String) As String
+    If Len(s) > 0 Then
+        If InStr("=+-@" & vbTab & vbCr & vbLf, Left$(s, 1)) > 0 Then
+            SafeText = "'" & s
+            Exit Function
+        End If
+    End If
+    SafeText = s
+End Function
 
 ' テンプレートを複製して帳票シートを作る。同じ月を作り直す場合は古いシートを置き換える
 Private Function CopyTemplate(ByVal sheetName As String) As Worksheet
