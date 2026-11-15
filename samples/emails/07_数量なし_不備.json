@@ -1,0 +1,7 @@
+{
+  "message_id": "<20261120.1120.f5@mail.example.com>",
+  "from": "buyer@reiji-kogyo.example.jp",
+  "subject": "見積と注文",
+  "received_at": "2026-11-20T11:20:00+09:00",
+  "body": "架空文具株式会社 御中\n\n例示工業株式会社です。\n\n商品：ホッチキス針 No.10\n希望納期：2026年12月3日\n\n数量は追ってご連絡します。"
+}
