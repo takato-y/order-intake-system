@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "受注データ",
+  "description": "受注 API への登録データ。n8n のスキーマ検証ノードにも同じ内容を埋め込み、テストで一致を確認する。",
+  "type": "object",
+  "required": ["message_id", "customer_name", "product", "quantity", "due_date"],
+  "additionalProperties": false,
+  "properties": {
+    "message_id": {"type": "string", "minLength": 3, "maxLength": 255, "pattern": "^\\S+$"},
+    "customer_name": {"type": "string", "minLength": 1, "maxLength": 100},
+    "product": {"type": "string", "minLength": 1, "maxLength": 100},
+    "quantity": {"type": "integer", "minimum": 1, "maximum": 100000},
+    "due_date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+    "received_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2})?"},
+    "extractor": {"type": "string", "enum": ["llm", "rule", "manual"]}
+  }
+}
