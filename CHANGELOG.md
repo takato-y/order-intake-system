@@ -2,6 +2,13 @@
 
 このプロジェクトの主な変更を記録します。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に、版の付け方は [セマンティック バージョニング](https://semver.org/lang/ja/) に従います。
 
+## [1.0.5] - 2026-11-15
+
+### ドキュメント
+
+- テーブル定義書の方針に、ER 図の論理名は生成後に手で追記している旨と再生成時の注意を明記し、注記を生成範囲の外へ移動
+- テスト仕様書の改版履歴に、概要への TC-043 追記を記録（版 1.3）
+
 ## [1.0.4] - 2026-11-15
 
 ### ドキュメント
@@ -55,6 +62,7 @@
 
 - API の登録・重複・検証エラーのログが出力されなかった問題
 
+[1.0.5]: https://github.com/takato-y/order-intake-system/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/takato-y/order-intake-system/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/takato-y/order-intake-system/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/takato-y/order-intake-system/compare/v1.0.1...v1.0.2
