@@ -2,8 +2,8 @@
 
 [![test](https://github.com/takato-y/order-intake-system/actions/workflows/test.yml/badge.svg)](https://github.com/takato-y/order-intake-system/actions/workflows/test.yml)
 
-- GitHub Actions で検査している範囲：API・抽出・月次バッチ・n8n フロー JSON の構造（tests/test_n8n_workflow.py）・設計書の突き合わせの自動テスト（pytest）と、n8n フローの再生成との一致
-- 手元の環境でのみ確かめた範囲：n8n と実際の LLM を使った取込（TC-030〜033）、LLM なしの API と月次バッチの通し確認（TC-034）、Excel の帳票マクロ（TC-035・TC-041）、Docker での起動（TC-036）、n8n の配備前検査（TC-039）、n8n の実行履歴の設定（TC-042）。SQL Server での DDL の実行と PowerShell ラッパーは未実施（TC-037・TC-038）
+- GitHub Actions で検査している範囲：API・抽出・月次バッチ・n8n フロー JSON の構造（tests/test_n8n_workflow.py）・設計書の突き合わせを対象とする自動テスト（pytest）と、n8n フローを生成し直した結果がリポジトリの JSON と一致するかの確認
+- 手元の環境でのみ確認した範囲：n8n と実際の LLM を使った取込（TC-030〜033）、LLM なしの API と月次バッチの通し確認（TC-034）、Excel の帳票マクロ（TC-035・TC-041）、Docker での起動（TC-036）、n8n の配備前検査（TC-039）、n8n の実行履歴の設定（TC-042）。SQL Server でのテーブル作成用 SQL（DDL）の実行と、PowerShell の起動用スクリプト（ラッパー）は未実施（TC-037・TC-038）
 
 取引先から届く受注メールを読み取って受注データとして登録し、月末には顧客別・商品別の集計と Excel の月次帳票までを作る業務システムです。複数の技術を組み合わせ、1 つの業務の流れとして動くように設計しています（使っている技術は下の表のとおりです）。
 
@@ -65,7 +65,7 @@ flowchart LR
 
 LLM や外部サービスがなくても、規則による抽出で全体が動きます。
 
-API と Webhook は認証なし・ローカル（社内）専用の構成です。外部に公開する場合は認証が必要です（[docs/02_方式設計.md](docs/02_方式設計.md) の 6 章を参照）。
+API と Webhook（メールの内容を受け取る n8n の受付口）は認証なし・ローカル（社内）専用の構成です。外部に公開する場合は認証が必要です（[docs/02_方式設計.md](docs/02_方式設計.md) の 6 章を参照）。
 
 ### Docker を使う場合
 
@@ -93,7 +93,7 @@ python -m batch.monthly_report --month 2026-11       # output/ に CSV と xlsx 
 python -m pytest -v                                  # 自動テスト
 ```
 
-- n8n を使う場合は `n8n/order-intake.json` を取り込み、「設定」ノードの接続先を合わせて有効化し、`python scripts/send_samples.py --url http://localhost:5678/webhook/order-intake` で送ります。Gmail から直接取り込む場合の差し替え方は [docs/05_インターフェース設計.md](docs/05_インターフェース設計.md) の 3.2 にあります
+- n8n を使う場合は `n8n/order-intake.json` を取り込み、「設定」ノードの接続先（受注 API と Ollama の URL・モデル名）を使う環境に合わせてからフローを有効化し、`python scripts/send_samples.py --url http://localhost:5678/webhook/order-intake` で送ります。Gmail から直接取り込む場合の差し替え方は [docs/05_インターフェース設計.md](docs/05_インターフェース設計.md) の 3.2 にあります
 - LLM を API 側でも使う場合は、環境変数 `EXTRACTOR_MODE=auto`、`OLLAMA_URL`、`OLLAMA_MODEL` を指定します
 - 帳票は Excel で VBA エディタを開き、`src/MonthlyReport.bas` を取り込んでマクロ `CreateMonthlyReport` を実行し、出力された CSV を選びます。ファイルは GitHub で読めるよう UTF-8 で保存しているため、日本語版 Excel に取り込む前に Shift_JIS へ変換してください（例：`iconv -f UTF-8 -t CP932 src/MonthlyReport.bas > MonthlyReport_sjis.bas`）
 - 毎月の定期実行の登録例は [docs/08_運用設計.md](docs/08_運用設計.md) にあります
@@ -122,7 +122,7 @@ python -m pytest -v                                  # 自動テスト
 2026-11,試験精機株式会社,付箋(75mm角・黄色),1,50
 ```
 
-この CSV を帳票マクロで取り込み、PDF に出力した画面です（Excel で実際に実行した結果）。最終行の「架空商会,本店 "A"」は、カンマと引用符を含む顧客名を正しく取り込めるか確認するために、検証用として CSV に 1 行足したものです。
+この CSV を帳票マクロで取り込み、PDF に出力した帳票の画像です（Excel で実際に実行した結果）。最終行の「架空商会,本店 "A"」は、カンマと引用符を含む顧客名を正しく取り込めるか確認するために、検証用として CSV に 1 行足したものです。
 
 ![月次受注帳票の出力例](docs/images/monthly_report_excel.png)
 
@@ -132,7 +132,7 @@ LLM を止めた場合は、文章形式のメール（06）だけが取込エ�
 
 ### 重複を防ぐ
 
-メールの Message-ID をデータベースの一意制約で守り、登録時の制約違反を「登録済み」と判断しています。「登録済みか調べてから登録する」方式は、同じメールが同時に届くと両方が通ってしまうためです。8 本同時に登録して 1 件だけになることをテストで確認しています。重複時は既存の受注を正常応答で返すので、n8n 側は通信エラー時に安心して再試行できます（[ADR-0003](docs/adr/0003-message-idによる冪等性.md)）。
+メールの Message-ID（メールごとに付く識別子）に、データベースの一意制約（同じ値を 2 件登録できない制約）を付け、登録時の制約違反を「登録済み」と判断しています。「登録済みか調べてから登録する」方式は、同じメールが同時に届くと両方が通ってしまうためです。同じメールを 8 件同時に登録しても 1 件しか登録されないことを、テストで確認しています。重複時は既存の受注を正常応答で返すので、n8n 側は通信エラー時に安心して再試行できます（[ADR-0003](docs/adr/0003-message-idによる冪等性.md)）。
 
 ### 二重の検証
 
@@ -144,7 +144,7 @@ LLM の停止・タイムアウト・出力の崩れが起きても、取り込�
 
 ### SQL Server への移行のしやすさ
 
-開始時は導入の手間がない SQLite を使い、SQL Server 用 DDL を用意しています（SQL Server での実行は未確認）。SQL は標準の範囲で書き、月の絞り込みも方言の関数を使わず範囲条件にしているため、移行時の変更がデータアクセス層の接続部分に限られる設計です。型の対応表と移行手順は [docs/04_テーブル定義書.md](docs/04_テーブル定義書.md) にあります（[ADR-0001](docs/adr/0001-sqlite採用とsqlserver移行方針.md)）。
+開始時は導入の手間がない SQLite を使い、SQL Server 用 DDL を用意しています（SQL Server での実行は未確認）。SQL は標準の範囲で書き、月の絞り込みもデータベース製品ごとに異なる独自の関数を使わず「月初以上・翌月初未満」の範囲条件で書いているため、移行時に変えるのはデータベースへの接続部分だけで済む設計です。型の対応表と移行手順は [docs/04_テーブル定義書.md](docs/04_テーブル定義書.md) にあります（[ADR-0001](docs/adr/0001-sqlite採用とsqlserver移行方針.md)）。
 
 ### 個人に関わる情報を残さない
 
@@ -208,4 +208,4 @@ order-intake-system/
 | Excel | Windows 版 Excel（デスクトップアプリ） |
 | Docker | Docker Desktop（Compose v5） |
 
-確認していないこと：SQL Server での DDL の実行、PowerShell ラッパーの Windows での実行、`docker compose up` によるコンテナ起動（同じ Dockerfile での `docker build`・`docker run` と、`docker compose config` は確認済み）。GitHub Actions 上での自動テストは公開後に実行し、47 件合格・1 件スキップ（実 LLM を使う 1 件は CI では実行しない設定）を確認済み。障害対応手順書の検査（TC-044）を加えた後のローカルでの実行結果は 48 件合格・1 件スキップ。
+確認していないこと：SQL Server での DDL の実行、PowerShell ラッパーの Windows での実行、`docker compose up` によるコンテナ起動（同じ Dockerfile での `docker build`・`docker run` と、`docker compose config` は確認済み）。GitHub Actions 上での自動テストは公開後に実行し、47 件合格・1 件スキップ（実際の LLM を使う 1 件は GitHub Actions では実行しない設定）を確認済み。障害対応手順書の検査（TC-044）を加えた後のローカルでの実行結果は 48 件合格・1 件スキップ。
